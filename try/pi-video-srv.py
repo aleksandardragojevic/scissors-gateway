@@ -36,7 +36,7 @@ def print_args(args):
 
 def start_server(args):
     camera = picamera.PiCamera()
-    camera.resolution = (640, 480)
+    camera.resolution = (1024, 768)
     camera.framerate = 24
 
     srv_sock = socket.socket()
@@ -50,7 +50,11 @@ def start_server(args):
     
     try:
         camera.start_recording(conn, format='h264')
-        camera.wait_recording(60)
+        
+        for i in range(0, 60):
+            camera.wait_recording(0)
+            time.sleep(1)
+            print('Elapsed {0} of 60 s'.format(i + 1))
         camera.stop_recording()
     finally:
         conn.close()

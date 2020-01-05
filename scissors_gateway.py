@@ -13,6 +13,7 @@ import select
 import picamera
 import time
 import sys
+import traceback
 
 #
 # Constants.
@@ -59,12 +60,12 @@ def parse_args():
         '--vidwidth',
         type=int,
         help='Width of the video in pixels',
-        default=1680)
+        default=1200)
     parser.add_argument(
         '--vidheight',
         type=int,
         help='Height of the video in pixels',
-        default=1050)
+        default=800)
     parser.add_argument(
         '--vidframerate',
         type=int,
@@ -133,7 +134,7 @@ class GatewayCam:
         logger.info("Listening for camera connections on {0}:{1}".format(args.host, args.camport))
 
     def close(self):
-        self.__stop_cam_stream()
+        self.__disconnect()
 
         if self.cam is not None:
             self.cam.close()
@@ -148,22 +149,28 @@ class GatewayCam:
 
     def process_socket(self):
         self.sock, cli_addr = self.sock_listen.accept()
-        logger.info('Camera client {0} connected'.format(cli_addr))
+        logger.info('Camera client {0} connected'.format(addr_to_str(cli_addr)))
     
         self.out_file = self.sock.makefile('wb')
 
+        self.recording = True
         self.cam.start_recording(self.out_file, format='h264')
 
     def process_periodic(self):
+        if not self.recording:
+            return
+
         try:
             self.cam.wait_recording(0)
         except Exception as e:
             logger.error('Camera error {0}'.format(e))
-            self.__stop_cam_stream()
+            self.__disconnect()
 
-    def __stop_cam_stream(self):
+    def __disconnect(self):
+        logger.info('Disconnecting camera client')
+        
         if self.recording:
-            self.cam.stop_recording()
+            self.__stop_cam_recording()
             self.recording = False
 
         if self.out_file is not None:
@@ -173,6 +180,12 @@ class GatewayCam:
         if self.sock is not None:
             self.sock.close()
             self.sock = None 
+            
+    def __stop_cam_recording(self):
+        try:
+            self.cam.stop_recording()
+        except:
+            pass
 
 #
 # Commands.
@@ -211,7 +224,10 @@ class GatewayStats:
         self.__init(args)
 
     def __init(self, args):
-        self.sock = None
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind((args.host, args.statsport))
+        logger.info("Waiting for stats on {0}:{1}".format(args.host, args.statsport))
+        
         self.last_send_time = time.perf_counter_ns()
         self.period_ms = args.statsperiod * NsInMs
 
