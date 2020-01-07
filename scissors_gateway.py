@@ -355,6 +355,8 @@ def main():
             gateway.execute()
     except KeyboardInterrupt:
         logger.info("Interrupted from keyboard. Exiting...")
-        pass
+    except Exception as e:
+        logger.error(e)
+        logger.error(traceback.format_exc())
 
 main()
